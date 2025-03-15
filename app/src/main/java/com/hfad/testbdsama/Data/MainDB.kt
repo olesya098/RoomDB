@@ -5,9 +5,10 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [prod::class],
-    version = 2
+    entities = [prod::class, Image::class],
+    version = 4
 )
 abstract class MainDB: RoomDatabase() {
     abstract val dao: com.hfad.testbdsama.Data.Dao
 }
+

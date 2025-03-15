@@ -1,9 +1,15 @@
 package com.hfad.testbdsama
 
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -44,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,7 +59,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -67,9 +77,12 @@ import com.hfad.testbdsama.ui.theme.gray
 import com.hfad.testbdsama.ui.theme.green
 import com.hfad.testbdsama.ui.theme.grey
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
-
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject
@@ -79,9 +92,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-
             var showCreateCard by remember { mutableStateOf(false) }
-            var editingProduct by remember { mutableStateOf<prod?>(null) } // Состояние для редактирования
+            var editingProduct by remember { mutableStateOf<prod?>(null) }
             val prodlist = mainDB.dao.gettAll().collectAsState(initial = emptyList())
             val coroutineScope = rememberCoroutineScope()
 
@@ -90,18 +102,16 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background),
-
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-
                     if (showCreateCard) {
                         CreateCard(
                             mainDB = mainDB,
                             onSave = {
                                 showCreateCard = false
-                                editingProduct = null // Сбрасываем состояние редактирования
+                                editingProduct = null
                             },
-                            editingProduct = editingProduct // Передаем карточку для редактирования
+                            editingProduct = editingProduct
                         )
                     } else {
                         LazyColumn(
@@ -114,14 +124,14 @@ class MainActivity : ComponentActivity() {
                                     product = product,
                                     onDelete = {
                                         coroutineScope.launch {
-                                            mainDB.dao.deleteProd(product) // Удаляем карточку
+                                            mainDB.dao.deleteProd(product)
                                         }
                                     },
                                     onEdit = {
-                                        editingProduct =
-                                            product // Устанавливаем карточку для редактирования
-                                        showCreateCard = true // Открываем экран редактирования
-                                    }
+                                        editingProduct = product
+                                        showCreateCard = true
+                                    },
+                                    mainDB = mainDB // Передаем mainDB
                                 )
                             }
                         }
@@ -129,8 +139,7 @@ class MainActivity : ComponentActivity() {
                             onClick = { showCreateCard = true },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
-
-                                ),
+                            ),
                             modifier = Modifier
                                 .padding(top = 20.dp, bottom = 40.dp)
                                 .size(height = 50.dp, width = 200.dp)
@@ -146,128 +155,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-}
-
-@Composable
-fun CardInf(
-    product: prod,
-    onDelete: () -> Unit,
-    onEdit: () -> Unit,
-    collapsedMaxLine: Int = 3
-) {
-
-    var isExpanded by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(10.dp)
-            .heightIn(min = 200.dp) // Минимальная высота карточки
-            .animateContentSize() // Анимация изменения размера
-            .clickable { isExpanded = !isExpanded }, // Разворачивание/сворачивание по клику
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(15.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Заголовок и разделитель
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    modifier = Modifier.fillMaxWidth(),
-                    text = product.name,
-                    fontSize = 20.sp,
-                    textAlign = TextAlign.Center
-                )
-                Divider(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    thickness = 1.dp,
-                    color = Color.Black
-                )
-            }
-
-            // Текст заметки
-            Text(
-                modifier = Modifier.fillMaxWidth(),
-                text = product.descriptoin,
-                textAlign = TextAlign.Start,
-                maxLines = if (isExpanded) Int.MAX_VALUE else collapsedMaxLine,
-                lineHeight = 25.sp,
-            )
-
-            // Кнопка "Показать/Скрыть"
-            Text(
-                text = if (isExpanded) "Скрыть" else "Показать",
-                color = green,
-                modifier = Modifier
-                    .clickable { isExpanded = !isExpanded }
-                    .align(Alignment.End)
-                    .padding(end = 8.dp, bottom = 8.dp)
-            )
-
-            // Кнопки внизу
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                ) {
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.padding(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = null,
-                            tint = green,
-                            modifier = Modifier.size(40.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                ) {
-                    IconButton(
-                        onClick = onEdit,
-                        modifier = Modifier.padding(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = null,
-                            tint = green,
-                            modifier = Modifier.size(30.dp)
-
-                        )
-                    }
-                }
-            }
-        }
-
-    }
-
 }
